@@ -21,6 +21,7 @@ const RESERVED_LOCAL_STORAGE_KEYS = [
 // 单独带上它（见 backup.ts 的 includeCloudCredentials），云端备份照旧不带。
 export const CLOUD_CREDENTIAL_KV_KEYS = ["ai_phone_cloud_backup_config_v1"];
 const KV_BACKUP_EXCLUDED_KEYS = [
+  "ai_phone_shell_preload_state_v1",
   ...CLOUD_CREDENTIAL_KV_KEYS,
   "ai_phone_cloud_backup_state_v1",
 ];

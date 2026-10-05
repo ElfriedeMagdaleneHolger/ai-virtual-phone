@@ -13,11 +13,11 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "app.floatphone.shell"
+        applicationId = System.getenv("SHELL_APPLICATION_ID") ?: "app.floatphone.shell"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0.0"
+        versionCode = (System.getenv("SHELL_VERSION_CODE") ?: "1").toInteger()
+        versionName = System.getenv("SHELL_VERSION_NAME") ?: "1.0.0"
         buildConfigField "String", "SITE_URL", "\"${siteUrl}\""
     }
 

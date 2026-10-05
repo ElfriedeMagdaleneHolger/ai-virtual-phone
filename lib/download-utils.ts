@@ -1,3 +1,5 @@
+import { saveBlobInAndroidShell } from "./shell-file-save";
+
 export type DownloadFileOptions = {
     disableNativeShare?: boolean;
     nativeShareOnly?: boolean;
@@ -15,6 +17,7 @@ export function isIOSBrowser(): boolean {
 }
 
 export async function downloadFile(blob: Blob, filename: string, options: DownloadFileOptions = {}): Promise<void> {
+    if (await saveBlobInAndroidShell(blob, filename)) return;
     const url = URL.createObjectURL(blob);
     const anchorDownload = () => {
         const a = document.createElement("a");

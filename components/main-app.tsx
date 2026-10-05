@@ -16,6 +16,7 @@ import { getThemeAssetMap, readThemeProfile } from "@/lib/theme-storage";
 import { resolveActiveIconSkins, type ThemeProfile } from "@/lib/theme-types";
 import { hasPendingMcpOAuthCallback } from "@/lib/tool-executor";
 import { shouldRequestPwaFullscreen } from "@/lib/pwa-display-mode";
+import { initializeShellPreload } from "@/lib/shell-preload";
 
 const TEXT = {
   loading: "\u52A0\u8F7D\u4E2D...",
@@ -250,6 +251,14 @@ export function MainApp() {
         return;
       }
       setKvHydrateFailed(false);
+
+      try {
+        await initializeShellPreload();
+      } catch (error) {
+        console.warn("[MainApp] shell preload failed:", error);
+        setKvHydrateFailed(true);
+        return;
+      }
 
       let nextPreparedTheme: PreparedDesktopTheme | null = null;
       try {
