@@ -43,7 +43,8 @@ import { CoCreateApp } from "@/components/cocreate/cocreate-app";
 import { AppMarketApp } from "@/components/app-market/app-market-app";
 import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 import { CustomAppForegroundBoundary } from "@/components/app-market/custom-app-failure";
-import { hydrateKvDb, kvGet, kvSet, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
+import { hydrateKvDb, kvGet, kvSet, kvSetAsync, kvRemove, kvKeysWithPrefix } from "@/lib/kv-db";
+import { pendingShellPreloadIds, completeShellPreloadPlacement } from "@/lib/shell-preload";
 import { deleteDatabase } from "@/lib/data-management/idb";
 import { hydrateStoryStorage } from "@/lib/story-storage";
 import { hydrateMomentsStorage } from "@/lib/moments-storage";
@@ -1560,6 +1561,25 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     window.addEventListener(CUSTOM_APP_PLACE_DESKTOP_EVENT, placeHandler);
     return () => window.removeEventListener(CUSTOM_APP_PLACE_DESKTOP_EVENT, placeHandler);
   }, []);
+
+  useEffect(() => {
+    if (!desktopReady) return;
+    const pending = pendingShellPreloadIds();
+    if (!pending.length) return;
+    for (const appId of pending) {
+      window.dispatchEvent(new CustomEvent(CUSTOM_APP_PLACE_DESKTOP_EVENT, { detail: { appId } }));
+    }
+    // Placement queues React state updates; acknowledge only after its layout is durable.
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const raw = kvGet(ICON_LAYOUT_STORAGE_KEY);
+        if (!raw || pending.some(id => !raw.includes(toCustomAppIconId(id)))) return;
+        await kvSetAsync(ICON_LAYOUT_STORAGE_KEY, raw);
+        await completeShellPreloadPlacement();
+      })().catch(error => console.warn("[DesktopShell] preload placement not persisted", error));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [desktopReady]);
 
   // 资源集市在 lib 里装完主题包后请桌面刷新。走的落地路径与外观页导入完全一致
   // （handleThemeDesktopChange + applyTheme），只是入口从 React 回调换成了事件。

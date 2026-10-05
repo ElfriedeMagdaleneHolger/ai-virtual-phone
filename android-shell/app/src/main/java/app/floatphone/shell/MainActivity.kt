@@ -18,6 +18,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -26,6 +27,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import org.json.JSONObject
 
 /**
  * Float 小手机安卓壳：全屏 WebView 直接加载线上站点。
@@ -35,12 +37,17 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         val SITE_URL: String = BuildConfig.SITE_URL
-        const val VERSION = "1.0.0"
+        val VERSION = BuildConfig.VERSION_NAME
         /** 来电接听等场景的站内深链（必须以 SITE_URL 开头，否则忽略） */
         const val EXTRA_OPEN_URL = "open_url"
     }
 
     private lateinit var webView: WebView
+    private val fileSaver = NativeFileSaver(this) { json ->
+        if (::webView.isInitialized) webView.post {
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('float-shell-save',{detail:$json}))", null)
+        }
+    }
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
     private val fileChooserLauncher = registerForActivityResult(
@@ -107,6 +114,21 @@ class MainActivity : AppCompatActivity() {
         webView.addJavascriptInterface(ShellBridge(), "AndroidShell")
 
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                val site = Uri.parse(SITE_URL)
+                val url = request.url
+                if (url.scheme == site.scheme && url.host == site.host && url.port == site.port &&
+                    url.path == "/__float_shell_assets/preinstalled.zip") {
+                    return runCatching {
+                        WebResourceResponse("application/zip", null, 200, "OK",
+                            mapOf("Cache-Control" to "no-store"), assets.open("preinstalled.zip"))
+                    }.getOrElse {
+                        WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(),
+                            java.io.ByteArrayInputStream(byteArrayOf()))
+                    }
+                }
+                return super.shouldInterceptRequest(view, request)
+            }
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url
                 val scheme = url.scheme ?: return false
@@ -211,6 +233,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        fileSaver.close()
         CookieManager.getInstance().flush()
         webView.destroy()
         super.onDestroy()
@@ -218,6 +241,20 @@ class MainActivity : AppCompatActivity() {
 
     /** 暴露给网页的原生桥（网页侧可用 window.AndroidShell 特性检测壳环境）。 */
     inner class ShellBridge {
+        @JavascriptInterface
+        fun beginFileSave(id: String, name: String, bytes: Long): Boolean = fileSaver.begin(id, name, bytes)
+        @JavascriptInterface
+        fun writeFileSaveChunk(id: String, value: String): Boolean = fileSaver.chunk(id, value)
+        @JavascriptInterface
+        fun finishFileSave(id: String): Boolean = fileSaver.finish(id)
+        @JavascriptInterface
+        fun cancelFileSave(id: String) = fileSaver.cancel(id)
+        @JavascriptInterface
+        fun getPreloadInfo(): String = runCatching {
+            val json = assets.open("preinstalled-info.json").bufferedReader().use { it.readText() }
+            JSONObject(json).put("url", Uri.parse(SITE_URL).buildUpon()
+                .path("/__float_shell_assets/preinstalled.zip").query(null).fragment(null).build().toString()).toString()
+        }.getOrDefault("")
         @JavascriptInterface
         fun getVersion(): String = VERSION
 

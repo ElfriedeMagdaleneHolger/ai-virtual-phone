@@ -28,3 +28,11 @@ tools/weixin-local-assistant/config.txt
 *.ts.net.crt
 *.ts.net.key
 /public/models/world-builder/
+# Personal app code/media are supplied locally, never committed to the public repo.
+android-shell/app/src/main/assets/preinstalled.zip
+android-shell/app/src/main/assets/preinstalled-info.json
+android-shell/.gradle/
+android-shell/build/
+android-shell/app/build/
+android-shell/local.properties
+*.keystore
